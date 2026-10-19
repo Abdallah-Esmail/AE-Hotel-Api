@@ -1,0 +1,52 @@
+{
+  "root": true,
+  "env": { "node": true, "es2022": true },
+  "parserOptions": { "ecmaVersion": 2022, "sourceType": "module" },
+  "extends": ["airbnb-base", "prettier"],
+  "plugins": ["prettier"],
+  "ignorePatterns": ["node_modules/", "coverage/"],
+  "rules": {
+    "prettier/prettier": "error",
+
+    "import/extensions": ["error", "ignorePackages", { "js": "always" }],
+    "import/prefer-default-export": "off",
+
+    "new-cap": [
+      "error",
+      {
+        "newIsCap": true,
+        "newIsCapExceptions": ["appError"],
+        "capIsNew": false
+      }
+    ],
+    "no-restricted-syntax": ["error", "LabeledStatement", "WithStatement"],
+    "guard-for-in": "off",
+
+    "no-console": "off",
+    "consistent-return": "off",
+    "func-names": "off",
+    "object-shorthand": "off",
+    "no-param-reassign": "off",
+    "no-return-await": "off",
+    "no-underscore-dangle": "off",
+    "class-methods-use-this": "off",
+
+    "prefer-destructuring": ["warn", { "object": true, "array": false }],
+    "no-unused-vars": ["warn", { "argsIgnorePattern": "^(req|res|next|val)$" }],
+    "import/no-unresolved": [
+      "error",
+      { "commonjs": true, "caseSensitive": true, "ignore": ["^dotenv/config$"] }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["migrations/**/*.js"],
+      "rules": {
+        "no-unused-vars": [
+          "warn",
+          { "argsIgnorePattern": "^(queryInterface|Sequelize)$" }
+        ]
+      }
+    }
+  ]
+}
