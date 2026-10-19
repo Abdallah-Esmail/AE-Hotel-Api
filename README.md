@@ -7,6 +7,13 @@ The production frontend is expected at `https://ae-hotel.vercel.app`.
 
 ---
 
+## 📑 API Documentation & Live Links
+
+- 🦄 **Swagger API Docs:** https://app.swaggerhub.com/apis-docs/abdallah-1b2/ae-hotel/1.0.0?view=uiDocs
+- 🐙 **GitHub Repository:** [abdallah-esmail/AE-Hotel-Api](https://github.com/Abdallah-Esmail/AE-Hotel-Api)
+
+---
+
 ## Table of Contents
 
 - [Features](#features)
@@ -38,17 +45,17 @@ The production frontend is expected at `https://ae-hotel.vercel.app`.
 
 ## Tech Stack
 
-| Area | Library |
-| --- | --- |
-| Server | Express 5 |
-| Database | PostgreSQL (Supabase-style SSL) via Sequelize 6 + `pg` |
-| Auth | `jsonwebtoken`, `bcryptjs` |
-| Validation | `express-validator` |
-| Uploads | `multer` (memory storage), `sharp`, `cloudinary` |
-| Payments | `stripe` |
-| Email | `nodemailer` |
-| Rate limiting | `express-rate-limit` |
-| Tooling | ESLint (airbnb-base) + Prettier, `nodemon`, `sequelize-cli` |
+| Area          | Library                                                     |
+| ------------- | ----------------------------------------------------------- |
+| Server        | Express 5                                                   |
+| Database      | PostgreSQL (Supabase-style SSL) via Sequelize 6 + `pg`      |
+| Auth          | `jsonwebtoken`, `bcryptjs`                                  |
+| Validation    | `express-validator`                                         |
+| Uploads       | `multer` (memory storage), `sharp`, `cloudinary`            |
+| Payments      | `stripe`                                                    |
+| Email         | `nodemailer`                                                |
+| Rate limiting | `express-rate-limit`                                        |
+| Tooling       | ESLint (airbnb-base) + Prettier, `nodemon`, `sequelize-cli` |
 
 ## Project Structure
 
@@ -165,10 +172,20 @@ npm run db:migrate
 
 ```json
 {
-  "development": { "use_env_variable": "DATABASE_URL", "dialect": "postgres",
-    "dialectOptions": { "ssl": { "require": true, "rejectUnauthorized": false } } },
-  "production":  { "use_env_variable": "DATABASE_URL", "dialect": "postgres",
-    "dialectOptions": { "ssl": { "require": true, "rejectUnauthorized": false } } }
+  "development": {
+    "use_env_variable": "DATABASE_URL",
+    "dialect": "postgres",
+    "dialectOptions": {
+      "ssl": { "require": true, "rejectUnauthorized": false }
+    }
+  },
+  "production": {
+    "use_env_variable": "DATABASE_URL",
+    "dialect": "postgres",
+    "dialectOptions": {
+      "ssl": { "require": true, "rejectUnauthorized": false }
+    }
+  }
 }
 ```
 
@@ -176,20 +193,20 @@ npm run db:migrate
 
 ## Scripts
 
-| Script | Description |
-| --- | --- |
-| `npm run start:dev` | Start with `nodemon`, preloading `dotenv/config` |
-| `npm run start:prod` | Start with `NODE_ENV=production` |
-| `npm run db:migrate` | Run Sequelize migrations |
-| `npm run lint` | Run ESLint |
+| Script               | Description                                      |
+| -------------------- | ------------------------------------------------ |
+| `npm run start:dev`  | Start with `nodemon`, preloading `dotenv/config` |
+| `npm run start:prod` | Start with `NODE_ENV=production`                 |
+| `npm run db:migrate` | Run Sequelize migrations                         |
+| `npm run lint`       | Run ESLint                                       |
 
 ## Roles & Permissions
 
-| Role | Capabilities |
-| --- | --- |
-| **user** | Manage own profile/password, create bookings, view/cancel own bookings, pay for own bookings |
+| Role        | Capabilities                                                                                       |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| **user**    | Manage own profile/password, create bookings, view/cancel own bookings, pay for own bookings       |
 | **manager** | Everything a user can, plus create/update/delete rooms, list all bookings, view/cancel any booking |
-| **admin** | Everything a manager can, plus user management and changing user roles |
+| **admin**   | Everything a manager can, plus user management and changing user roles                             |
 
 New accounts always start as `user`. Only an admin can change a role.
 
@@ -203,13 +220,13 @@ Authorization: Bearer <token>
 
 ### Auth — `/api/v1/auth`
 
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| POST | `/signup` | – | Register a new user, returns `{ data, token }` |
-| POST | `/login` | – | Login, returns `{ data, token }` |
-| POST | `/forgetPassword` | – | Email a 6-digit reset code (valid 10 minutes) |
-| POST | `/verifyPasswordResetCode` | – | Verify the code |
-| PUT | `/resetPassword` | – | Set a new password after verification, returns `{ token }` |
+| Method | Path                       | Auth | Description                                                |
+| ------ | -------------------------- | ---- | ---------------------------------------------------------- |
+| POST   | `/signup`                  | –    | Register a new user, returns `{ data, token }`             |
+| POST   | `/login`                   | –    | Login, returns `{ data, token }`                           |
+| POST   | `/forgetPassword`          | –    | Email a 6-digit reset code (valid 10 minutes)              |
+| POST   | `/verifyPasswordResetCode` | –    | Verify the code                                            |
+| PUT    | `/resetPassword`           | –    | Set a new password after verification, returns `{ token }` |
 
 **Signup body**
 
@@ -236,54 +253,54 @@ Rules: names 3–32 chars; phone must be an Egyptian or Saudi mobile number; pas
 
 ### Users — `/api/v1/users` (all routes require login)
 
-| Method | Path | Role | Description |
-| --- | --- | --- | --- |
-| GET | `/getMe` | any | Current user profile |
-| PUT | `/updateMe` | any | Update `firstName`, `lastName`, `phone` |
-| PUT | `/changeMyPassword` | any | Body: `currentPassword`, `newPassword`, `passwordConfirmation`; returns a new token |
-| DELETE | `/deleteMe` | any | Deactivate own account (soft delete) |
-| PATCH | `/:id/role` | admin | Body: `{ "role": "user" \| "manager" \| "admin" }` |
-| GET | `/` | admin | List users (supports query features) |
-| POST | `/` | admin | Create a user |
-| PUT | `/:id` | admin | Update `firstName`, `lastName`, `phone`, `active` |
-| DELETE | `/:id` | admin | Deactivate a user (soft delete) |
+| Method | Path                | Role  | Description                                                                         |
+| ------ | ------------------- | ----- | ----------------------------------------------------------------------------------- |
+| GET    | `/getMe`            | any   | Current user profile                                                                |
+| PUT    | `/updateMe`         | any   | Update `firstName`, `lastName`, `phone`                                             |
+| PUT    | `/changeMyPassword` | any   | Body: `currentPassword`, `newPassword`, `passwordConfirmation`; returns a new token |
+| DELETE | `/deleteMe`         | any   | Deactivate own account (soft delete)                                                |
+| PATCH  | `/:id/role`         | admin | Body: `{ "role": "user" \| "manager" \| "admin" }`                                  |
+| GET    | `/`                 | admin | List users (supports query features)                                                |
+| POST   | `/`                 | admin | Create a user                                                                       |
+| PUT    | `/:id`              | admin | Update `firstName`, `lastName`, `phone`, `active`                                   |
+| DELETE | `/:id`              | admin | Deactivate a user (soft delete)                                                     |
 
 ### Rooms — `/api/v1/rooms`
 
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| GET | `/` | – | List rooms (supports query features) |
-| GET | `/:id` | – | Get one room |
-| GET | `/:id/check-availability?checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD` | – | `{ roomId, isAvailable }` |
-| GET | `/check-available-rooms?checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD&guests=2` | – | Rooms that are free for the dates and fit the guest count |
-| POST | `/` | admin, manager | Create room (`multipart/form-data`) |
-| PATCH | `/:id` | admin, manager | Update room (`multipart/form-data`) |
-| DELETE | `/:id` | admin, manager | Delete room |
+| Method | Path                                                                     | Auth           | Description                                               |
+| ------ | ------------------------------------------------------------------------ | -------------- | --------------------------------------------------------- |
+| GET    | `/`                                                                      | –              | List rooms (supports query features)                      |
+| GET    | `/:id`                                                                   | –              | Get one room                                              |
+| GET    | `/:id/check-availability?checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD`         | –              | `{ roomId, isAvailable }`                                 |
+| GET    | `/check-available-rooms?checkIn=YYYY-MM-DD&checkOut=YYYY-MM-DD&guests=2` | –              | Rooms that are free for the dates and fit the guest count |
+| POST   | `/`                                                                      | admin, manager | Create room (`multipart/form-data`)                       |
+| PATCH  | `/:id`                                                                   | admin, manager | Update room (`multipart/form-data`)                       |
+| DELETE | `/:id`                                                                   | admin, manager | Delete room                                               |
 
 **Create/update room** is `multipart/form-data`:
 
-| Field | Type | Notes |
-| --- | --- | --- |
-| `roomNumber` | string | Required, unique |
-| `type` | enum | `single`, `double`, `suite`, `deluxe` |
-| `pricePerNight` | number | Required, ≥ 0 |
-| `capacity` | integer | Required, ≥ 1 |
-| `status` | enum | `available` (default) or `maintenance` |
-| `description` | string | Optional |
-| `mainImage` | file | Required on create; images only, max 5 MB. Resized to 1920×1080 JPEG and uploaded to the Cloudinary `rooms` folder |
-| `imageUrls` | string[] | Optional list of extra image URLs |
+| Field           | Type     | Notes                                                                                                              |
+| --------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
+| `roomNumber`    | string   | Required, unique                                                                                                   |
+| `type`          | enum     | `single`, `double`, `suite`, `deluxe`                                                                              |
+| `pricePerNight` | number   | Required, ≥ 0                                                                                                      |
+| `capacity`      | integer  | Required, ≥ 1                                                                                                      |
+| `status`        | enum     | `available` (default) or `maintenance`                                                                             |
+| `description`   | string   | Optional                                                                                                           |
+| `mainImage`     | file     | Required on create; images only, max 5 MB. Resized to 1920×1080 JPEG and uploaded to the Cloudinary `rooms` folder |
+| `imageUrls`     | string[] | Optional list of extra image URLs                                                                                  |
 
 A room is considered unavailable for a date range if it is in `maintenance`, or it has a `confirmed` booking overlapping the range, or a `pending` booking younger than 15 minutes overlapping the range.
 
 ### Bookings — `/api/v1/bookings` (all routes require login)
 
-| Method | Path | Role | Description |
-| --- | --- | --- | --- |
-| GET | `/` | admin, manager | List all bookings (supports query features) |
-| POST | `/` | any | Create a pending booking |
-| GET | `/:id` | owner, manager, admin | Get a booking |
-| PATCH | `/:id/cancel` | owner, manager, admin | Cancel a booking |
-| POST | `/:id/checkout-session` | owner | Create a Stripe Checkout session, returns `{ session: "<checkout url>" }` |
+| Method | Path                    | Role                  | Description                                                               |
+| ------ | ----------------------- | --------------------- | ------------------------------------------------------------------------- |
+| GET    | `/`                     | admin, manager        | List all bookings (supports query features)                               |
+| POST   | `/`                     | any                   | Create a pending booking                                                  |
+| GET    | `/:id`                  | owner, manager, admin | Get a booking                                                             |
+| PATCH  | `/:id/cancel`           | owner, manager, admin | Cancel a booking                                                          |
+| POST   | `/:id/checkout-session` | owner                 | Create a Stripe Checkout session, returns `{ session: "<checkout url>" }` |
 
 **Create booking body**
 
@@ -302,9 +319,9 @@ Possible errors: `400` (past date, bad range, over capacity, room under maintena
 
 ### Stripe Webhook
 
-| Method | Path | Description |
-| --- | --- | --- |
-| POST | `/webhook-checkout` | Receives Stripe events. Not under `/api/v1`. Uses the raw body for signature verification |
+| Method | Path                | Description                                                                               |
+| ------ | ------------------- | ----------------------------------------------------------------------------------------- |
+| POST   | `/webhook-checkout` | Receives Stripe events. Not under `/api/v1`. Uses the raw body for signature verification |
 
 Handled events:
 
@@ -329,20 +346,25 @@ Handled events:
 
 List endpoints (`GET /rooms`, `/users`, `/bookings`) accept:
 
-| Param | Example | Meaning |
-| --- | --- | --- |
-| field filters | `?type=suite&status=available` | Equality filter |
-| operators | `?pricePerNight[gte]=50&pricePerNight[lte]=200` | `gte`, `gt`, `lte`, `lt` |
-| `sort` | `?sort=-pricePerNight,capacity` | `-` prefix = descending; default `-createdAt` |
-| `fields` | `?fields=roomNumber,type,pricePerNight` | Select columns |
-| `page`, `limit` | `?page=2&limit=10` | Pagination (default page 1, limit 50) |
+| Param           | Example                                         | Meaning                                       |
+| --------------- | ----------------------------------------------- | --------------------------------------------- |
+| field filters   | `?type=suite&status=available`                  | Equality filter                               |
+| operators       | `?pricePerNight[gte]=50&pricePerNight[lte]=200` | `gte`, `gt`, `lte`, `lt`                      |
+| `sort`          | `?sort=-pricePerNight,capacity`                 | `-` prefix = descending; default `-createdAt` |
+| `fields`        | `?fields=roomNumber,type,pricePerNight`         | Select columns                                |
+| `page`, `limit` | `?page=2&limit=10`                              | Pagination (default page 1, limit 50)         |
 
 Response:
 
 ```json
 {
   "results": 10,
-  "paginationResult": { "currentPage": 2, "limit": 10, "resultsCount": 37, "pagesCount": 4 },
+  "paginationResult": {
+    "currentPage": 2,
+    "limit": 10,
+    "resultsCount": 37,
+    "pagesCount": 4
+  },
   "data": []
 }
 ```
@@ -352,7 +374,7 @@ Response:
 Success (most endpoints):
 
 ```json
-{ "status": "success", "data": { } }
+{ "status": "success", "data": {} }
 ```
 
 Errors:
@@ -364,7 +386,11 @@ Errors:
 Validation errors (HTTP 400):
 
 ```json
-{ "errors": [ { "msg": "Invalid email address", "path": "email", "location": "body" } ] }
+{
+  "errors": [
+    { "msg": "Invalid email address", "path": "email", "location": "body" }
+  ]
+}
 ```
 
 In `development` mode, error responses also include `code` and `stack`.

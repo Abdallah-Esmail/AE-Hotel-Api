@@ -1,0 +1,1277 @@
+openapi: 3.0.3
+info:
+  title: AE-Hotel API
+  version: 1.0.0
+  description: |
+    REST API for a hotel booking system: authentication, users and roles,
+    rooms with image upload, availability search, bookings with a 15-minute
+    pending hold, and Stripe Checkout payments.
+
+    Protected routes require `Authorization: Bearer <token>`.
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Local
+  - url: https://your-api-host/api/v1
+    description: Production
+tags:
+  - name: Auth
+  - name: Users
+  - name: Rooms
+  - name: Bookings
+  - name: Stripe
+
+paths:
+  # ───────────────────────── Auth ─────────────────────────
+  /auth/signup:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          description: Incorrect email or password, or account deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  /auth/forgetPassword:
+    post:
+      tags: [Auth]
+      summary: Email a 6-digit password reset code (valid 10 minutes)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        "200":
+          description: Same response whether or not the email exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  message:
+                    type: string
+                    example: If user exists reset code has sent to email
+        "500":
+          description: Email could not be sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /auth/verifyPasswordResetCode:
+    post:
+      tags: [Auth]
+      summary: Verify the reset code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resetCode]
+              properties:
+                resetCode:
+                  type: string
+                  example: "123456"
+      responses:
+        "200":
+          description: Code verified
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+        "404":
+          description: Reset code is invalid or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /auth/resetPassword:
+    put:
+      tags: [Auth]
+      summary: Set a new password after the code was verified
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, newPassword]
+              properties:
+                email:
+                  type: string
+                  format: email
+                newPassword:
+                  type: string
+                  minLength: 8
+                  maxLength: 100
+      responses:
+        "200":
+          description: Password changed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+        "400":
+          description: Invalid request or expired code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  # ───────────────────────── Users ─────────────────────────
+  /users/getMe:
+    get:
+      tags: [Users]
+      summary: Current user profile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/updateMe:
+    put:
+      tags: [Users]
+      summary: Update own profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+      responses:
+        "200":
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDocumentResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/changeMyPassword:
+    put:
+      tags: [Users]
+      summary: Change own password
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword, passwordConfirmation]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+                  minLength: 8
+                  maxLength: 100
+                passwordConfirmation:
+                  type: string
+      responses:
+        "200":
+          description: Password changed, a new token is returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+                  token:
+                    type: string
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/deleteMe:
+    delete:
+      tags: [Users]
+      summary: Deactivate own account (soft delete)
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Account deactivated
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/{id}/role:
+    patch:
+      tags: [Users]
+      summary: Change a user's role (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  $ref: "#/components/schemas/Role"
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Fields"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Paginated users
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Users]
+      summary: Create a user (admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SignupRequest"
+      responses:
+        "200":
+          description: User created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /users/{id}:
+    put:
+      tags: [Users]
+      summary: Update a user (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              allOf:
+                - $ref: "#/components/schemas/UpdateProfileRequest"
+                - type: object
+                  properties:
+                    active:
+                      type: boolean
+      responses:
+        "200":
+          description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserDocumentResponse"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Users]
+      summary: Deactivate a user (admin, soft delete)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "204":
+          description: User deactivated
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ───────────────────────── Rooms ─────────────────────────
+  /rooms:
+    get:
+      tags: [Rooms]
+      summary: List rooms
+      description: |
+        Supports equality filters (`?type=suite&status=available`) and
+        operator filters (`?pricePerNight[gte]=50&pricePerNight[lte]=200`,
+        operators: `gte`, `gt`, `lte`, `lt`).
+      parameters:
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Fields"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - name: type
+          in: query
+          schema:
+            $ref: "#/components/schemas/RoomType"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/RoomStatus"
+        - name: capacity
+          in: query
+          schema:
+            type: integer
+        - name: pricePerNight[gte]
+          in: query
+          schema:
+            type: number
+        - name: pricePerNight[lte]
+          in: query
+          schema:
+            type: number
+      responses:
+        "200":
+          description: Paginated rooms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomList"
+    post:
+      tags: [Rooms]
+      summary: Create a room (admin, manager)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/RoomCreateRequest"
+      responses:
+        "201":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Room"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  /rooms/check-available-rooms:
+    get:
+      tags: [Rooms]
+      summary: Rooms that are free for the dates and fit the guest count
+      parameters:
+        - $ref: "#/components/parameters/CheckIn"
+        - $ref: "#/components/parameters/CheckOut"
+        - name: guests
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        "200":
+          description: Available rooms
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Room"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+
+  /rooms/{id}/check-availability:
+    get:
+      tags: [Rooms]
+      summary: Check whether one room is available for the dates
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+        - $ref: "#/components/parameters/CheckIn"
+        - $ref: "#/components/parameters/CheckOut"
+      responses:
+        "200":
+          description: Availability result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      roomId:
+                        type: string
+                        format: uuid
+                      isAvailable:
+                        type: boolean
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /rooms/{id}:
+    get:
+      tags: [Rooms]
+      summary: Get one room
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          description: Room
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: "#/components/schemas/Room"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Rooms]
+      summary: Update a room (admin, manager)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/RoomUpdateRequest"
+      responses:
+        "200":
+          description: Room updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      document:
+                        $ref: "#/components/schemas/Room"
+        "400":
+          $ref: "#/components/responses/ValidationError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Rooms]
+      summary: Delete a room (admin, manager)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "204":
+          description: Room deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ───────────────────────── Bookings ─────────────────────────
+  /bookings:
+    get:
+      tags: [Bookings]
+      summary: List all bookings (admin, manager)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Sort"
+        - $ref: "#/components/parameters/Fields"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/Limit"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/BookingStatus"
+      responses:
+        "200":
+          description: Paginated bookings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingList"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [Bookings]
+      summary: Create a pending booking
+      description: |
+        The booking holds the room for 15 minutes while payment is pending.
+        `totalPrice` is computed on the server (nights × price per night).
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "201":
+          description: Booking created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: Validation error, past date, over capacity, or room under maintenance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Dates already booked, or the user already has a pending booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /bookings/{id}:
+    get:
+      tags: [Bookings]
+      summary: Get a booking (owner, manager, admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          description: Booking
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /bookings/{id}/cancel:
+    patch:
+      tags: [Bookings]
+      summary: Cancel a booking (owner, manager, admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          description: Booking cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: Booking is already cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /bookings/{id}/checkout-session:
+    post:
+      tags: [Bookings]
+      summary: Create a Stripe Checkout session (booking owner)
+      description: The booking must be `pending` and younger than 15 minutes.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UuidId"
+      responses:
+        "200":
+          description: Checkout session created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  session:
+                    type: string
+                    format: uri
+                    description: Stripe Checkout URL to redirect the user to
+        "400":
+          description: Booking is not pending, or the hold expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  # ───────────────────────── Stripe webhook ─────────────────────────
+  /webhook-checkout:
+    servers:
+      - url: http://localhost:5000
+        description: Local (webhook lives outside /api/v1)
+      - url: https://your-api-host
+        description: Production
+    post:
+      tags: [Stripe]
+      summary: Stripe webhook receiver
+      description: |
+        Called by Stripe only. The raw request body is verified with the
+        `stripe-signature` header.
+
+        Handled events:
+        - `checkout.session.completed` – confirms and marks the booking as paid
+        - `charge.refunded` – marks the booking as refunded and cancelled
+      parameters:
+        - name: stripe-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Stripe event object
+      responses:
+        "200":
+          description: Event received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  received:
+                    type: boolean
+                    example: true
+        "400":
+          description: Invalid signature
+          content:
+            text/plain:
+              schema:
+                type: string
+        "500":
+          description: Processing failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Webhook failed
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    UuidId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    CheckIn:
+      name: checkIn
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+        example: "2026-11-01"
+    CheckOut:
+      name: checkOut
+      in: query
+      required: true
+      schema:
+        type: string
+        format: date
+        example: "2026-11-04"
+    Sort:
+      name: sort
+      in: query
+      description: Comma-separated fields, `-` prefix for descending (default `-createdAt`)
+      schema:
+        type: string
+        example: -createdAt
+    Fields:
+      name: fields
+      in: query
+      description: Comma-separated list of fields to return
+      schema:
+        type: string
+    Page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 50
+
+  responses:
+    ValidationError:
+      description: Validation failed
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              errors:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      example: field
+                    msg:
+                      type: string
+                      example: Invalid email address
+                    path:
+                      type: string
+                      example: email
+                    location:
+                      type: string
+                      example: body
+    Unauthorized:
+      description: Missing, invalid or expired token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Not allowed to access this resource
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    TooManyRequests:
+      description: Rate limit exceeded (100 requests per 15 minutes per IP)
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [fail, error]
+        message:
+          type: string
+
+    Role:
+      type: string
+      enum: [user, manager, admin]
+    RoomType:
+      type: string
+      enum: [single, double, suite, deluxe]
+    RoomStatus:
+      type: string
+      enum: [available, maintenance]
+    BookingStatus:
+      type: string
+      enum: [pending, confirmed, cancelled]
+
+    SignupRequest:
+      type: object
+      required: [firstName, lastName, email, phone, password, passwordConfirmation]
+      properties:
+        firstName:
+          type: string
+          minLength: 3
+          maxLength: 32
+          example: Ahmed
+        lastName:
+          type: string
+          minLength: 3
+          maxLength: 32
+          example: Ali
+        email:
+          type: string
+          format: email
+          example: ahmed@example.com
+        phone:
+          type: string
+          description: Egyptian or Saudi mobile number
+          example: "01012345678"
+        password:
+          type: string
+          minLength: 8
+          maxLength: 100
+          description: No spaces allowed
+        passwordConfirmation:
+          type: string
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        phone:
+          type: string
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        firstName:
+          type: string
+        lastName:
+          type: string
+          nullable: true
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        role:
+          $ref: "#/components/schemas/Role"
+        passwordChangedAt:
+          type: string
+          format: date-time
+          nullable: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    AuthResponse:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/User"
+        token:
+          type: string
+
+    UserDocumentResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            document:
+              $ref: "#/components/schemas/User"
+
+    Pagination:
+      type: object
+      properties:
+        currentPage:
+          type: integer
+        limit:
+          type: integer
+        resultsCount:
+          type: integer
+        pagesCount:
+          type: integer
+
+    UserList:
+      type: object
+      properties:
+        results:
+          type: integer
+        paginationResult:
+          $ref: "#/components/schemas/Pagination"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/User"
+
+    Room:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        roomNumber:
+          type: string
+        type:
+          $ref: "#/components/schemas/RoomType"
+        pricePerNight:
+          type: number
+        capacity:
+          type: integer
+        status:
+          $ref: "#/components/schemas/RoomStatus"
+        description:
+          type: string
+          nullable: true
+        mainImage:
+          type: string
+          format: uri
+        imageUrls:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    RoomCreateRequest:
+      type: object
+      required: [roomNumber, type, pricePerNight, capacity, mainImage]
+      properties:
+        roomNumber:
+          type: string
+        type:
+          $ref: "#/components/schemas/RoomType"
+        pricePerNight:
+          type: number
+          minimum: 0
+        capacity:
+          type: integer
+          minimum: 1
+        status:
+          $ref: "#/components/schemas/RoomStatus"
+        description:
+          type: string
+        mainImage:
+          type: string
+          format: binary
+          description: Image file, max 5 MB. Resized to 1920x1080 JPEG and uploaded to Cloudinary
+        imageUrls:
+          type: array
+          items:
+            type: string
+
+    RoomUpdateRequest:
+      type: object
+      properties:
+        roomNumber:
+          type: string
+        type:
+          $ref: "#/components/schemas/RoomType"
+        pricePerNight:
+          type: number
+          minimum: 0
+        capacity:
+          type: integer
+          minimum: 1
+        status:
+          $ref: "#/components/schemas/RoomStatus"
+        description:
+          type: string
+        mainImage:
+          type: string
+          format: binary
+        imageUrls:
+          type: array
+          items:
+            type: string
+
+    RoomList:
+      type: object
+      properties:
+        results:
+          type: integer
+        paginationResult:
+          $ref: "#/components/schemas/Pagination"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Room"
+
+    CreateBookingRequest:
+      type: object
+      required: [roomId, checkIn, checkOut, guestsCount]
+      properties:
+        roomId:
+          type: string
+          format: uuid
+        checkIn:
+          type: string
+          format: date
+          example: "2026-11-01"
+        checkOut:
+          type: string
+          format: date
+          example: "2026-11-04"
+        guestsCount:
+          type: integer
+          minimum: 1
+          example: 2
+
+    Booking:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        roomId:
+          type: string
+          format: uuid
+        checkIn:
+          type: string
+          format: date
+        checkOut:
+          type: string
+          format: date
+        guestsCount:
+          type: integer
+        totalPrice:
+          type: string
+          description: Decimal returned as a string by PostgreSQL
+          example: "300.00"
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        isPaid:
+          type: boolean
+        paidAt:
+          type: string
+          format: date-time
+          nullable: true
+        paymentIntentId:
+          type: string
+          nullable: true
+        sessionId:
+          type: string
+          nullable: true
+        isRefunded:
+          type: boolean
+        refundedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+
+    BookingResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        data:
+          $ref: "#/components/schemas/Booking"
+
+    BookingList:
+      type: object
+      properties:
+        results:
+          type: integer
+        paginationResult:
+          $ref: "#/components/schemas/Pagination"
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
