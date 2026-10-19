@@ -3,11 +3,16 @@ info:
   title: AE-Hotel API
   version: 1.0.0
   description: |
-    REST API for a hotel booking system: authentication, users and roles,
-    rooms with image upload, availability search, bookings with a 15-minute
-    pending hold, and Stripe Checkout payments.
+    A robust and scalable RESTful API for a modern Hotel Booking and Management System.
 
-    Protected routes require `Authorization: Bearer <token>`.
+    Key Features:
+    - Secure Authentication & Authorization (JWT, Role-Based Access Control)
+    - Advanced Room Management with image upload & availability search filters
+    - Smart Booking Engine featuring a 15-minute temporary hold mechanism
+    - Seamless Payment Integration via Stripe Checkout & Webhooks
+    - Enterprise-grade Security (CORS protection, Rate Limiting, Global Error Handling)
+
+    Authentication: Protected routes require 'Authorization: Bearer <token>'
 servers:
   - url: http://localhost:5000/api/v1
     description: Local
@@ -970,7 +975,8 @@ components:
 
     SignupRequest:
       type: object
-      required: [firstName, lastName, email, phone, password, passwordConfirmation]
+      required:
+        [firstName, lastName, email, phone, password, passwordConfirmation]
       properties:
         firstName:
           type: string
